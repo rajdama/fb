@@ -1,0 +1,20 @@
+{
+  "name": "fb-bday",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@playwright/test": "^1.56.1",
+    "@supabase/supabase-js": "^2.81.1",
+    "electron": "^39.2.1",
+    "node-fetch": "^3.3.2",
+    "robotjs": "^0.6.0"
+  }
+}
