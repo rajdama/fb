@@ -504,7 +504,7 @@ async function main() {
     checkEmergencyStop();
 
     await new Promise((resolve) => {
-      const child = spawn("node", ["oneday-fetch.js"], { stdio: "inherit" });
+      const child = spawn("node", ["fetch-bday.js"], { stdio: "inherit" });
 
       const emergencyCheck = setInterval(() => {
         if (EMERGENCY_STOP) {
