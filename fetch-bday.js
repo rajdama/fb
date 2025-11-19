@@ -343,18 +343,18 @@ async function insertBirthdaysToSupabase(friends) {
       }
 
       // Insert new record
-      // const { error } = await supabase
-      //   .from("birthdays")
-      //   .insert([
-      //     {
-      //       profile_data: {
-      //         name: f.name,
-      //         profileUrl: f.profileUrl,
-      //         birthday: f.birthday,
-      //         extracted_at: new Date().toISOString(),
-      //       },
-      //     },
-      //   ]);
+      const { error } = await supabase
+        .from("birthdays")
+        .insert([
+          {
+            profile_data: {
+              name: f.name,
+              profileUrl: f.profileUrl,
+              birthday: f.birthday,
+              extracted_at: new Date().toISOString(),
+            },
+          },
+        ]);
 
       if (error) {
         console.log(`❌ Failed to insert ${f.name}:`, error.message);
@@ -364,7 +364,7 @@ async function insertBirthdaysToSupabase(friends) {
         success++;
       }
     } catch (error) {
-      // console.log(`❌ Error processing ${f.name}:`, error.message);
+      console.log(`❌ Error processing ${f.name}:`, error.message);
       fail++;
     }
   }
@@ -374,15 +374,30 @@ async function insertBirthdaysToSupabase(friends) {
   );
 }
 
+/* ---------- Filter today's birthdays ---------- */
+function filterTodaysBirthdays(friends) {
+  const today = new Date();
+  const currentDay = today.getDate();
+  const currentMonth = today.getMonth() + 1; // JavaScript months are 0-indexed
+
+  return friends.filter(friend => {
+    if (!friend.birthday) return false;
+    
+    const { day, month } = friend.birthday;
+    return day === currentDay && month === currentMonth;
+  });
+}
+
 /* ---------- MAIN FETCH FUNCTION ---------- */
 
 async function fetchBirthdays() {
   console.log("🚀 Starting current month's birthday fetch...");
 
-  // Get current month
+  // Get current month and day
   const currentMonth = new Date().getMonth() + 1; // 1–12
+  const currentDay = new Date().getDate();
 
-  console.log("📅 Current month:", currentMonth);
+  console.log("📅 Today's date:", `${currentDay}/${currentMonth}`);
 
   // Ensure session
   if (
@@ -516,14 +531,27 @@ async function fetchBirthdays() {
   }
 
   console.log(
-    `📌 Birthdays found for current month (${currentMonth}):`,
+    `📌 All birthdays found for current month (${currentMonth}):`,
     friendsForCurrentMonth.length
   );
 
-  if (friendsForCurrentMonth.length > 0) {
-    await insertBirthdaysToSupabase(friendsForCurrentMonth);
+  // FILTER FOR TODAY'S BIRTHDAYS ONLY
+  const todaysBirthdays = filterTodaysBirthdays(friendsForCurrentMonth);
+  
+  console.log(
+    `🎂 Today's birthdays (${currentDay}/${currentMonth}):`,
+    todaysBirthdays.length
+  );
+
+  if (todaysBirthdays.length > 0) {
+    console.log("👥 Today's birthday friends:");
+    todaysBirthdays.forEach(friend => {
+      console.log(`   - ${friend.name} (${friend.birthday.day}/${friend.birthday.month})`);
+    });
+    
+    await insertBirthdaysToSupabase(todaysBirthdays);
   } else {
-    console.log("⚠️ No birthdays to insert.");
+    console.log("⚠️ No birthdays today.");
   }
 
   console.log("🎉 Complete!");
