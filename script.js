@@ -8,6 +8,8 @@ import readline from "readline";
 
 const pyProcess = spawn("python", ["global_key_listener.py"]);
 
+function dragTo(el, x, y) {}
+
 pyProcess.stdout.on("data", (data) => {
   const lines = data.toString().split("\n").filter(Boolean);
   for (const line of lines) {
@@ -33,25 +35,30 @@ pyProcess.on("close", (code) => {
   console.log(`Python process exited with code ${code}`);
 });
 
-const files = fs.readdirSync("./fb_data_gif");
-
-for (const file of files) {
-  const filePath = path.join("./fb_data_gif", file);
-  try {
-    fs.unlinkSync(filePath); // delete file
-    console.log(`Deleted: ${file}`);
-  } catch (err) {
-    console.error(`Error deleting ${file}:`, err);
+// Clean up directories
+if (fs.existsSync("./fb_data_gif")) {
+  const gifFiles = fs.readdirSync("./fb_data_gif");
+  for (const file of gifFiles) {
+    const filePath = path.join("./fb_data_gif", file);
+    try {
+      fs.unlinkSync(filePath);
+      console.log(`Deleted: ${file}`);
+    } catch (err) {
+      console.error(`Error deleting ${file}:`, err);
+    }
   }
 }
 
-for (const file of files) {
-  const filePath = path.join("./fb_data", file);
-  try {
-    fs.unlinkSync(filePath); // delete file
-    console.log(`Deleted: ${file}`);
-  } catch (err) {
-    console.error(`Error deleting ${file}:`, err);
+if (fs.existsSync("./fb_data")) {
+  const dataFiles = fs.readdirSync("./fb_data");
+  for (const file of dataFiles) {
+    const filePath = path.join("./fb_data", file);
+    try {
+      fs.unlinkSync(filePath);
+      console.log(`Deleted: ${file}`);
+    } catch (err) {
+      console.error(`Error deleting ${file}:`, err);
+    }
   }
 }
 
@@ -216,136 +223,263 @@ function isBirthdayToday(day, month) {
   );
 }
 
-async function clickSequence(name, id) {
+async function clickSequence(name, id, page) {
   console.log(`🤖 Starting automation for ${name}`);
-
-  checkEmergencyStop();
-
-  robot.moveMouse(1001, 387);
-  robot.mouseClick();
-  checkEmergencyStop();
-
-  for (let i = 0; i < 30; i++) {
-    robot.keyTap("pageup");
-    robot.setKeyboardDelay(50);
-    if (i % 5 === 0) checkEmergencyStop();
-  }
-
-  robot.moveMouse(635, 101);
-  robot.mouseClick();
-  checkEmergencyStop();
-
-  robot.keyTap("a", ["control"]);
-  checkEmergencyStop();
-
-  robot.typeString(id);
-  checkEmergencyStop();
-
-  robot.keyTap("enter");
-  checkEmergencyStop();
-
-  robot.moveMouse(27, 392);
-  robot.mouseClick();
-  await wait(500);
-  checkEmergencyStop();
-
-  robot.moveMouseSmooth(181, 212);
-  robot.mouseClick();
-  await wait(500);
-  checkEmergencyStop();
-
-  robot.moveMouse(827, 50);
-  await wait(500);
-  checkEmergencyStop();
-
-  robot.mouseClick("left", true);
-  checkEmergencyStop();
-
-  robot.keyTap("a", ["control"]);
-  checkEmergencyStop();
-
-  robot.typeString(`D:\\fb-bday\\fb_data`);
-  checkEmergencyStop();
-
-  robot.keyTap("enter");
-  checkEmergencyStop();
-
-  robot.moveMouse(226, 134);
-  robot.mouseClick();
-  await wait(1000);
-  checkEmergencyStop();
-
-  robot.moveMouse(1113, 635);
-  robot.mouseClick();
-  await wait(500);
-  checkEmergencyStop();
-
-  robot.moveMouseSmooth(116, 381);
-  robot.mouseClick();
-  await wait(500);
-  checkEmergencyStop();
-
-  robot.moveMouseSmooth(808, 364);
-  await wait(500);
-  robot.mouseToggle("down", "left");
-  await wait(500);
-  robot.dragMouse(808, 320);
-  await wait(500);
-  robot.mouseToggle("up", "left");
-  checkEmergencyStop();
-
-  robot.moveMouseSmooth(806, 497);
-  robot.mouseClick("left", true);
-  checkEmergencyStop();
-
-  robot.keyTap("a", ["control"]);
-  checkEmergencyStop();
-
-  robot.typeString(`${name}`);
-  checkEmergencyStop();
-
-  robot.moveMouseSmooth(1234, 109);
-  robot.mouseClick();
-  checkEmergencyStop();
-
-  robot.moveMouseSmooth(989, 439);
-  robot.mouseClick();
-  checkEmergencyStop();
-
-  robot.moveMouseSmooth(1133, 374);
-  robot.mouseClick();
-  checkEmergencyStop();
-
-  robot.keyTap("a", ["control"]);
-  checkEmergencyStop();
-
-  robot.typeString("1");
-  checkEmergencyStop();
-
-  // Clean up downloaded files
-  fs.readdir("./fb_data", (err, files) => {
-    if (err) return console.error("Error reading folder:", err);
-
-    files.forEach((file) => {
-      const filePath = path.join("./fb_data", file);
-      fs.unlink(filePath, (err) => {
-        if (err) console.error("Failed to delete:", filePath, err);
-        else console.log("Deleted:", filePath);
-      });
-    });
+  await wait(10000);
+  await page.mouse.click(1404, 412);
+  await page.mouse.wheel(0, -1000); // Scroll up by 1000 pixels
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
   });
 
-  robot.moveMouseSmooth(1156, 216);
-  robot.mouseClick();
-  checkEmergencyStop();
+  const restest = await page.evaluate(() => {
+    const el = document.querySelector('[aria-label="image_placeholder"]');
+    console.log(el);
+    if (!el) return null;
 
-  robot.moveMouseSmooth(1150, 543);
-  robot.mouseClick();
-  checkEmergencyStop();
+    const rect = el.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
 
-  robot.moveMouseSmooth(1108, 470);
-  robot.mouseClick();
-  checkEmergencyStop();
+    console.log(x, y);
+    return { x, y };
+  });
+
+  if (!restest) {
+const resyo = await page.evaluate((name) => {
+    const el = document.querySelector(`img[alt="unique_1234"]`);
+    if (!el) return null;
+    
+    const rect = el.getBoundingClientRect();
+    const centerX = rect.left + (rect.width / 2);
+    const centerY = rect.top + (rect.height / 2);
+    
+    return {
+        x: centerX,
+        y: centerY,
+    };
+}, name); // Pass the name variable as an argument
+
+await page.mouse.click(resyo.x, resyo.y);
+
+    await page.locator('button[aria-label="Delete"]').click();
+    await wait(1000);
+    await page.evaluate(() => {
+      const span = Array.from(document.querySelectorAll("span")).find(
+        (el) => el.textContent.trim() === "Delete image"
+      );
+
+      if (span) {
+        span.click();
+        console.log("Clicked on:", span); 
+      } else {
+        console.log('No span with text "Alternative text" found');
+      }
+    });
+  }
+  await wait(5000);
+
+  // Using page.evaluate to get elements matching exact text
+  await page.evaluate(() => {
+    const span = Array.from(document.querySelectorAll("span")).find(
+      (el) => el.textContent.trim() === "Uploads"
+    );
+
+    if (span) {
+      span.click();
+      // console.log('Clicked on:', span);
+    } else {
+      console.log('No span with text "Uploads" found');
+    }
+  });
+
+  const fileInput = page.locator('input[type="file"]');
+  await fileInput.setInputFiles(`./fb_data/${name}.jpg`);
+
+  await wait(10000);
+
+  // Locate the image with the specific aria-label
+  await page.locator(`div[aria-label="${name}.jpg"]`).first().click();
+
+  await wait(5000);
+
+  await page.locator('button[aria-label="More"]').click();
+  await wait(5000);
+
+  await page.evaluate(() => {
+    const span = Array.from(document.querySelectorAll("span")).find(
+      (el) => el.textContent.trim() === "Alternative text"
+    );
+
+    if (span) {
+      span.click();
+      console.log("Clicked on:", span);
+    } else {
+      console.log('No span with text "Alternative text" found');
+    }
+  });
+
+  await wait(5000);
+  const str = `unique_1234`
+
+  await page.keyboard.type(str);
+
+  await page.evaluate(() => {
+    const span = Array.from(document.querySelectorAll("span")).find(
+      (el) => el.textContent.trim() === "Save"
+    );
+
+    if (span) {
+      span.click();
+      console.log("Clicked on:", span);
+    } else {
+      console.log('No span with text "Alternative text" found');
+    }
+  });
+
+  try {
+    await page.evaluate(() => {
+      const span = Array.from(document.querySelectorAll("span")).find(
+        (el) => el.textContent.trim() === "Delete image"
+      );
+
+      if (span) {
+        span.click();
+        console.log("Clicked on:", span);
+      } else {
+        console.log('No span with text "Alternative text" found');
+      }
+    });
+  } catch (e) {
+    console.log(e);
+  }
+
+  const result = await page.evaluate((theStr) => {
+    const el = document.querySelector('[aria-label="image_placeholder"]');
+    if (!el) return null;
+
+    const rect = el.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+
+    const el2 = document.querySelector(`[alt="${theStr}"]`);
+    if (!el2) return null;
+
+    const rect2 = el2.getBoundingClientRect();
+    const startX = rect2.left + rect2.width / 2;
+    const startY = rect2.top + rect2.height / 2;
+
+    // Perform drag and drop in browser context
+    el2.dispatchEvent(
+      new MouseEvent("mousedown", {
+        bubbles: true,
+        clientX: startX,
+        clientY: startY,
+      })
+    );
+
+    document.dispatchEvent(
+      new MouseEvent("mousemove", {
+        bubbles: true,
+        clientX: x,
+        clientY: y,
+      })
+    );
+
+    document.dispatchEvent(
+      new MouseEvent("mouseup", {
+        bubbles: true,
+        clientX: x,
+        clientY: y,
+      })
+    );
+
+    const el3 = document.querySelector('[aria-label="name_placeholder"]');
+    if (!el3) return null;
+
+    const rect3 = el3.getBoundingClientRect();
+    return {
+      x: rect3.left + rect3.width / 2,
+      y: rect3.top + rect3.height / 2,
+    };
+  }, str); // <-- PASS value correctly
+
+  // Now use page methods in Puppeteer context
+  if (result) {
+    // Double click at the coordinates
+    await page.mouse.click(result.x, result.y, { clickCount: 2 });
+
+    // Select all and type
+    await page.keyboard.press("Control+A");
+    await page.keyboard.type(name);
+
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+
+  const elementres = page.locator('input[aria-label="Design title"]');
+  await elementres.click();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type(id);
+
+  await page.evaluate(async () => {
+    // Find and click the Share button
+    const shareButton = Array.from(document.querySelectorAll("span")).find(
+      (el) => el.textContent.trim() === "Share"
+    );
+    if (shareButton) shareButton.click();
+
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Click download button
+    const downloadButton = document.querySelector(
+      'button[aria-label="Download"]'
+    );
+
+    if (downloadButton) downloadButton.click();
+
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  });
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+
+  await page.evaluate(async () => {
+    document.querySelector('button[aria-label="File type"]').click();
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    Array.from(document.querySelectorAll("*"))
+      .find((el) => el.textContent.trim() === "Short clip, no sound")
+      .click();
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+
+  const res = await page.evaluate(() => {
+    const input = document.querySelector('input[placeholder="Select pages"]');
+    if (!input) return null;
+
+    const rect = input.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    return { centerX, centerY };
+  });
+
+  if (res) {
+    // Click on the input using page.mouse
+    await page.mouse.click(res.centerX, res.centerY);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Select all and type '1'
+    await page.keyboard.press("Control+A");
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    await page.keyboard.type("1");
+  }
+
+  await page.evaluate(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    Array.from(document.querySelectorAll("span"))
+      .find((el) => el.textContent.trim() === "Download")
+      .click();
+  });
 
   console.log(`✅ Automation completed for ${name}`);
   return true;
@@ -504,7 +638,7 @@ async function main() {
     checkEmergencyStop();
 
     await new Promise((resolve) => {
-      const child = spawn("node", ["fetch-bday.js"], { stdio: "inherit" });
+      const child = spawn("node", ["oneday-fetch.js"], { stdio: "inherit" });
 
       const emergencyCheck = setInterval(() => {
         if (EMERGENCY_STOP) {
@@ -604,10 +738,14 @@ async function main() {
           // Set custom download folder for this specific page
           try {
             const client = await page2.context().newCDPSession(page2);
-            await client.send("Browser.setDownloadBehavior", {
+            await client.send("Page.setDownloadBehavior", {
               behavior: "allow",
               downloadPath: path.resolve("./fb_data_gif"),
             });
+
+            console.log(
+              `✅ Download path set to: ${path.resolve("./fb_data_gif")}`
+            );
           } catch (error) {
             console.log(
               `❌ Failed to set download behavior for ${birthday.name}:`,
@@ -616,13 +754,13 @@ async function main() {
           }
 
           await page2.goto(
-            "https://www.canva.com/design/DAG43y0rIK0/kOKfgmNIzysN-37BAO3sUw/edit",
+            "https://www.canva.com/design/DAG41EaHN1s/55xjYAlx29ULT2H4N0eTww/edit",
             { waitUntil: "load" }
           );
 
           await wait(5000);
 
-          await clickSequence(birthday.name, birthday.id);
+          await clickSequence(birthday.name, birthday.id, page2);
 
           console.log("\n🎉 All birthdays processed!");
           console.log(`📊 Active tabs: ${activePages.size}`);
@@ -636,7 +774,7 @@ async function main() {
             "\n⏳ Waiting for GIF files to be generated and uploaded to Supabase..."
           );
 
-          // Add upload and wait logic here:
+          // FIXED: GIF waiting logic
           let gifFound = false;
           const maxWaitTime = 5 * 60 * 1000; // 5 minutes in milliseconds
           const startTime = Date.now();
@@ -646,64 +784,67 @@ async function main() {
             `⏳ Waiting for GIF file: ${expectedFileName} (max 5 minutes)...`
           );
 
-          // Check if file already exists
-          const initialFilePath = path.join("./fb_data_gif", expectedFileName);
-          if (
-            fs.existsSync(initialFilePath) &&
-            !processedFiles.has(expectedFileName)
-          ) {
-            console.log(`✅ GIF file already exists: ${expectedFileName}`);
-            await uploadGifAndUpdateDatabase(initialFilePath, expectedFileName);
-            processedFiles.add(expectedFileName);
-            gifFound = true;
-          }
+          // Check both possible locations
+          const downloadLocations = [
+            path.join("C:/Users/Raj/Downloads", expectedFileName),
+            path.join("./fb_data_gif", expectedFileName),
+          ];
 
-          while (true) {
-            checkEmergencyStop();
-
-            const currentTime = Date.now();
-            const elapsedTime = currentTime - startTime;
-
-            // Check if file exists
-            const filePath = path.join("./fb_data_gif", expectedFileName);
-            console.log(fs.existsSync(filePath));
-            if (fs.existsSync(filePath)) {
-              console.log(`✅ GIF file detected: ${expectedFileName}`);
-              uploadGifAndUpdateDatabase(filePath, expectedFileName)
-                .then(() => {
-                  processedFiles.add(expectedFileName);
-                  console.log(`✅ Upload completed for ${birthday.name}`);
-                })
-                .catch((error) => {
-                  console.error(
-                    `❌ Upload failed for ${birthday.name}:`,
-                    error
-                  );
-                });
+          let filePath = null;
+          for (const location of downloadLocations) {
+            if (
+              fs.existsSync(location) &&
+              !processedFiles.has(expectedFileName)
+            ) {
+              console.log(`✅ GIF file found at: ${location}`);
+              filePath = location;
               break;
             }
-
-            // Check if timeout reached
-            if (elapsedTime >= maxWaitTime) {
-              console.log(
-                `⏰ 5-minute timeout reached for ${birthday.name}. Proceeding without GIF.`
-              );
-              clearInterval(fileCheckInterval);
-              gifFound = false;
-            }
-
-            // Optional: Log progress every 30 seconds
-            if (elapsedTime % 30000 < 1000) {
-              const remainingSeconds = Math.round(
-                (maxWaitTime - elapsedTime) / 1000
-              );
-              console.log(`   Still waiting... ${remainingSeconds}s remaining`);
-            }
-            await wait(3000); // Check every second
           }
-          // If file not found initially, wait for i
+
+          if (filePath) {
+            console.log(`✅ GIF file detected: ${expectedFileName}`);
+            await uploadGifAndUpdateDatabase(filePath, expectedFileName);
+            processedFiles.add(expectedFileName);
+            gifFound = true;
+          } else {
+            // If file not found initially, wait for it
+            console.log(`🔍 Monitoring for GIF file: ${expectedFileName}`);
+
+            const waitStartTime = Date.now();
+            while (!gifFound && Date.now() - waitStartTime < maxWaitTime) {
+              checkEmergencyStop();
+
+              // Check all possible locations
+              for (const location of downloadLocations) {
+                if (
+                  fs.existsSync(location) &&
+                  !processedFiles.has(expectedFileName)
+                ) {
+                  console.log(`✅ GIF file detected at: ${location}`);
+                  await uploadGifAndUpdateDatabase(location, expectedFileName);
+                  processedFiles.add(expectedFileName);
+                  gifFound = true;
+                  break;
+                }
+              }
+
+              if (!gifFound) {
+                console.log(`⏳ Still waiting for ${expectedFileName}...`);
+                await wait(3000); // Check every 3 seconds
+              }
+            }
+          }
+
+          if (!gifFound) {
+            console.log(
+              `❌ Timeout: GIF file ${expectedFileName} not found within 5 minutes`
+            );
+            continue; // Skip to next birthday
+          }
 
           await wait(2000);
+
           let birthdayCountToday = 0;
           for (const row of dat) {
             if (row.profile_data.name !== birthday.name) continue;
