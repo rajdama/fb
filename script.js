@@ -22,8 +22,22 @@ class EnhancedFileMonitor {
     this.watchers = [];
   }
 
+  // Ensure download directory exists
+  ensureDownloadDirs() {
+    this.downloadLocations.forEach(location => {
+      if (!fs.existsSync(location)) {
+        try {
+          fs.mkdirSync(location, { recursive: true });
+          console.log(`📁 Created directory: ${location}`);
+        } catch (error) {
+          console.log(`⚠️ Could not create directory: ${location}`, error.message);
+        }
+      }
+    });
+  }
+
   // Check if file is completely written
-  isFileComplete(filePath, maxRetries = 10) {
+  isFileComplete(filePath, maxRetries = 15) {
     return new Promise((resolve) => {
       let retries = 0;
       
@@ -32,19 +46,32 @@ class EnhancedFileMonitor {
           const stats = fs.statSync(filePath);
           const initialSize = stats.size;
           
+          if (initialSize === 0) {
+            retries++;
+            if (retries >= maxRetries) {
+              console.log(`⚠️ File is still empty after ${maxRetries} retries: ${filePath}`);
+              resolve(false);
+              return;
+            }
+            setTimeout(check, 500);
+            return;
+          }
+
           // Wait and check if file size changes
           setTimeout(() => {
             try {
               const newStats = fs.statSync(filePath);
               if (newStats.size === initialSize && newStats.size > 0) {
-                resolve(true); // File is complete
+                console.log(`✅ File verified complete: ${path.basename(filePath)} (${newStats.size} bytes)`);
+                resolve(true);
               } else {
+                console.log(`📊 File size changed: ${initialSize} -> ${newStats.size}, continuing to monitor...`);
                 retries++;
                 if (retries >= maxRetries) {
                   console.log(`⚠️ File might still be writing: ${filePath}`);
-                  resolve(true); // Assume complete after max retries
+                  resolve(true);
                 } else {
-                  check(); // Continue checking
+                  check();
                 }
               }
             } catch (error) {
@@ -55,9 +82,14 @@ class EnhancedFileMonitor {
                 check();
               }
             }
-          }, 500);
+          }, 1000);
         } catch (error) {
-          resolve(false);
+          retries++;
+          if (retries >= maxRetries) {
+            resolve(false);
+          } else {
+            setTimeout(check, 500);
+          }
         }
       };
       
@@ -72,40 +104,76 @@ class EnhancedFileMonitor {
       
       const filePath = path.join(location, fileName);
       if (fs.existsSync(filePath)) {
+        console.log(`🔍 Found file at: ${filePath}`);
         return filePath;
       }
       
       // Also check for files with similar names (Chrome might add (1), (2), etc.)
       const files = fs.readdirSync(location);
       const matchingFile = files.find(f => 
-        f.startsWith(fileName.replace('.gif', '')) && f.endsWith('.gif')
+        f.startsWith(fileName.replace('.gif', '')) && 
+        (f.endsWith('.gif') || f.endsWith('.GIF'))
       );
       
       if (matchingFile) {
-        return path.join(location, matchingFile);
+        const foundPath = path.join(location, matchingFile);
+        console.log(`🔍 Found matching file: ${matchingFile} at ${foundPath}`);
+        return foundPath;
       }
     }
     return null;
   }
 
-  // Wait for file with enhanced reliability
-  async waitForFile(fileName, timeoutMs = 5 * 60 * 1000) {
-    console.log(`🔍 Searching for: ${fileName}`);
+  // Copy file to fb_data_gif directory
+  async copyToTargetLocation(sourcePath, fileName) {
+    const targetDir = path.resolve("./fb_data_gif");
+    const targetPath = path.join(targetDir, fileName);
     
-    // First, check all locations immediately
-    let filePath = this.findFile(fileName);
-    if (filePath) {
-      console.log(`✅ File found immediately: ${filePath}`);
-      if (await this.isFileComplete(filePath)) {
-        return filePath;
+    // Ensure target directory exists
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    
+    try {
+      // Wait a bit to ensure file is completely written
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Copy file
+      fs.copyFileSync(sourcePath, targetPath);
+      
+      // Verify copy was successful
+      if (fs.existsSync(targetPath)) {
+        const stats = fs.statSync(targetPath);
+        console.log(`✅ Successfully copied to: ${targetPath} (${stats.size} bytes)`);
+        return targetPath;
+      } else {
+        throw new Error("Copy failed - target file doesn't exist");
+      }
+    } catch (error) {
+      console.log(`❌ Failed to copy file: ${error.message}`);
+      return null;
+    }
+  }
+
+  // Wait for file with enhanced reliability and ensure it's in fb_data_gif
+  async waitForFile(fileName, timeoutMs = 7 * 60 * 1000) {
+    console.log(`\n🔍 Starting file search for: ${fileName}`);
+    this.ensureDownloadDirs();
+    
+    const startTime = Date.now();
+    let foundInTarget = false;
+    let finalFilePath = null;
+
+    // First, check if file already exists in target location
+    const targetPath = path.join(path.resolve("./fb_data_gif"), fileName);
+    if (fs.existsSync(targetPath)) {
+      console.log(`✅ File already in target location: ${targetPath}`);
+      if (await this.isFileComplete(targetPath)) {
+        return targetPath;
       }
     }
 
-    // If not found, set up file watchers
-    console.log(`⏳ Waiting for file: ${fileName} (timeout: ${timeoutMs/1000}s)`);
-    
     return new Promise((resolve, reject) => {
-      const startTime = Date.now();
       let found = false;
       
       const cleanup = () => {
@@ -118,7 +186,7 @@ class EnhancedFileMonitor {
         clearInterval(interval);
       };
       
-      const checkInterval = () => {
+      const checkFile = async () => {
         if (found) return;
         
         const currentTime = Date.now();
@@ -128,16 +196,49 @@ class EnhancedFileMonitor {
           return;
         }
         
-        filePath = this.findFile(fileName);
-        if (filePath) {
-          this.isFileComplete(filePath).then(complete => {
-            if (complete && !found) {
+        // Check all locations for the file
+        const filePath = this.findFile(fileName);
+        if (filePath && !found) {
+          const complete = await this.isFileComplete(filePath);
+          if (complete) {
+            console.log(`✅ File detected and verified: ${filePath}`);
+            
+            // If file is not in fb_data_gif, copy it there
+            if (!filePath.includes('fb_data_gif')) {
+              console.log(`📋 Copying file to fb_data_gif directory...`);
+              const copiedPath = await this.copyToTargetLocation(filePath, fileName);
+              if (copiedPath) {
+                finalFilePath = copiedPath;
+                found = true;
+                foundInTarget = true;
+                
+                // Try to clean up original file
+                try {
+                  if (filePath !== copiedPath) {
+                    fs.unlinkSync(filePath);
+                    console.log(`🗑️ Cleaned up original file: ${path.basename(filePath)}`);
+                  }
+                } catch (e) {
+                  console.log(`⚠️ Could not clean up original file: ${e.message}`);
+                }
+              }
+            } else {
+              finalFilePath = filePath;
               found = true;
-              cleanup();
-              console.log(`✅ File detected and verified: ${filePath}`);
-              resolve(filePath);
+              foundInTarget = true;
             }
-          });
+            
+            if (found) {
+              cleanup();
+              
+              if (foundInTarget) {
+                console.log(`🎯 File ready in target location: ${finalFilePath}`);
+                resolve(finalFilePath);
+              } else {
+                reject(new Error(`File found but could not be moved to target location`));
+              }
+            }
+          }
         }
       };
       
@@ -147,26 +248,31 @@ class EnhancedFileMonitor {
           try {
             fs.mkdirSync(location, { recursive: true });
           } catch (e) {
+            console.log(`⚠️ Could not create directory: ${location}`);
             return;
           }
         }
         
         try {
           const watcher = fs.watch(location, (eventType, filename) => {
-            if (filename && filename.includes(fileName.replace('.gif', '')) && filename.endsWith('.gif')) {
+            if (filename && 
+                (filename.includes(fileName.replace('.gif', '')) && 
+                 (filename.endsWith('.gif') || filename.endsWith('.GIF')))) {
               console.log(`📁 File system event: ${eventType} - ${filename}`);
-              checkInterval();
+              checkFile();
             }
           });
           this.watchers.push(watcher);
         } catch (error) {
-          console.log(`⚠️ Could not watch location: ${location}`);
+          console.log(`⚠️ Could not watch location: ${location}`, error.message);
         }
       });
       
       // Also do periodic checks
-      const interval = setInterval(checkInterval, 2000);
-      checkInterval(); // Initial check
+      const interval = setInterval(checkFile, 3000);
+      
+      // Initial check
+      checkFile();
       
       // Emergency cleanup on promise rejection
       setTimeout(() => {
@@ -421,6 +527,8 @@ async function clickSequence(name, id, page) {
       return { x, y };
     });
 
+    await wait(2000);
+
     if (!restest) {
       const resyo = await page.evaluate((name) => {
         const el = document.querySelector(`img[alt="unique_1234"]`);
@@ -431,6 +539,8 @@ async function clickSequence(name, id, page) {
         const centerY = rect.top + rect.height / 2;
         return { x: centerX, y: centerY };
       }, name);
+
+      await wait(2000);
 
       if (resyo) {
         await page.mouse.click(resyo.x, resyo.y);
@@ -658,6 +768,8 @@ async function uploadGifAndUpdateDatabase(filePath, fileName) {
       throw new Error(`File is empty: ${filePath}`);
     }
 
+    console.log(`📊 File size: ${stats.size} bytes`);
+
     const fileBuffer = fs.readFileSync(filePath);
 
     // Upload to Supabase Storage
@@ -705,30 +817,40 @@ async function processBirthdayPost(birthday, page2) {
     checkEmergencyStop();
     
     const expectedFileName = `${birthday.id}.gif`;
-    console.log(`🎯 Processing GIF for: ${birthday.name} (ID: ${birthday.id})`);
+    console.log(`\n🎯 Starting Facebook post process for: ${birthday.name} (ID: ${birthday.id})`);
 
-    // Wait for GIF file with enhanced reliability
+    // Wait for GIF file with enhanced reliability - THIS IS THE KEY FIX
     let gifFilePath;
     try {
-      gifFilePath = await fileMonitor.waitForFile(expectedFileName, 5 * 60 * 1000);
+      console.log(`⏳ Waiting for GIF file: ${expectedFileName}`);
+      gifFilePath = await fileMonitor.waitForFile(expectedFileName, 7 * 60 * 1000);
+      console.log(`✅ GIF file confirmed available: ${gifFilePath}`);
     } catch (error) {
       console.log(`❌ Failed to find GIF for ${birthday.name}:`, error.message);
       return false;
     }
 
+    // Additional verification that file is in the correct location
+    if (!gifFilePath.includes('fb_data_gif')) {
+      console.log(`❌ File not in target location: ${gifFilePath}`);
+      return false;
+    }
+
     // Upload to Supabase
+    console.log(`☁️ Uploading to Supabase...`);
     const publicUrl = await uploadGifAndUpdateDatabase(gifFilePath, expectedFileName);
     if (!publicUrl) {
       console.log(`❌ Failed to upload GIF for ${birthday.name}`);
       return false;
     }
 
-    await wait(2000);
+    await wait(3000);
 
     // Facebook posting
-    console.log(`📝 Posting to Facebook for ${birthday.name}`);
+    console.log(`📝 Starting Facebook post for ${birthday.name}`);
     
     await page2.goto("https://www.facebook.com/", { waitUntil: "load" });
+    await wait(5000);
     
     // Find and click "Create a post"
     const createPostResult = await page2.evaluate(() => {
@@ -757,12 +879,16 @@ async function processBirthdayPost(birthday, page2) {
       return false;
     }
 
+    console.log("✅ Found and clicked 'Create a post'");
     await wait(10000);
 
     // Add photo/video
+    console.log("📷 Clicking photo/video button...");
     await page2.locator('[aria-label="Photo/video"]').nth(1).click();
+    await wait(3000);
     
     // Use robotjs to navigate file dialog
+    console.log("🖱️ Navigating file dialog...");
     robot.moveMouse(827, 50);
     await wait(500);
     robot.mouseClick("left", true);
@@ -782,10 +908,14 @@ async function processBirthdayPost(birthday, page2) {
     checkEmergencyStop();
     robot.keyTap("enter");
 
-    await wait(2000);
+    await wait(5000);
 
+    // Verify file was selected
+    console.log("✅ File selection completed");
+    
     // Type message
     const message = process.env.usermessage.replace("&{name}", birthday.name);
+    console.log(`💬 Typing message: ${message}`);
     await robot.typeString(message);
     checkEmergencyStop();
 
@@ -794,8 +924,12 @@ async function processBirthdayPost(birthday, page2) {
     await wait(2000);
 
     // Post
+    console.log("📤 Clicking post button...");
     await page2.click('div[aria-label="Post"]');
-    await wait(5000);
+    await wait(8000);
+
+    // Verify post was successful
+    console.log("✅ Post completed, cleaning up...");
 
     // Cleanup uploaded file from storage
     const { data, error } = await supabase.storage
@@ -814,11 +948,22 @@ async function processBirthdayPost(birthday, page2) {
         fs.unlinkSync(gifFilePath);
         console.log(`🗑️ Deleted local GIF: ${path.basename(gifFilePath)}`);
       }
+      
+      // Also clean up from other locations
+      fileMonitor.downloadLocations.forEach(location => {
+        if (location.includes('fb_data_gif')) return; // Skip target location
+        
+        const possiblePath = path.join(location, expectedFileName);
+        if (fs.existsSync(possiblePath)) {
+          fs.unlinkSync(possiblePath);
+          console.log(`🗑️ Cleaned up from ${location}: ${expectedFileName}`);
+        }
+      });
     } catch (error) {
-      console.log("⚠️ Could not delete local GIF:", error.message);
+      console.log("⚠️ Could not delete local files:", error.message);
     }
 
-    console.log(`✅ Successfully posted for ${birthday.name}`);
+    console.log(`✅ Successfully completed Facebook post for ${birthday.name}`);
     return true;
 
   } catch (error) {
